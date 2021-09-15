@@ -9,6 +9,7 @@ use Fico7489\Laravel\EloquentJoin\Exceptions\InvalidRelationClause;
 use Fico7489\Laravel\EloquentJoin\Exceptions\InvalidRelationGlobalScope;
 use Fico7489\Laravel\EloquentJoin\Exceptions\InvalidRelationWhere;
 use Fico7489\Laravel\EloquentJoin\Relations\BelongsToJoin;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Fico7489\Laravel\EloquentJoin\Relations\HasManyJoin;
 use Fico7489\Laravel\EloquentJoin\Relations\HasOneJoin;
 use Illuminate\Database\Eloquent\Builder;
@@ -179,11 +180,14 @@ class EloquentJoinBuilder extends Builder
         $relations = explode('.', $relations);
         $column = end($relations);
         $baseModel = $this->getModel();
+
         $baseTable = $baseModel->getTable();
+
         $basePrimaryKey = $baseModel->getKeyName();
 
         $currentModel = $baseModel;
         $currentTableAlias = $baseTable;
+
 
         $relationsAccumulated = [];
         foreach ($relations as $relation) {
@@ -209,17 +213,20 @@ class EloquentJoinBuilder extends Builder
 
             if (!in_array($relationAccumulatedString, $this->joinedTables)) {
                 $joinQuery = $relatedTable.($this->useTableAlias ? ' as '.$relatedTableAlias : '');
-                if ($relatedRelation instanceof BelongsToJoin) {
-                    $relatedKey = is_callable([$relatedRelation, 'getQualifiedForeignKeyName']) ? $relatedRelation->getQualifiedForeignKeyName() : $relatedRelation->getQualifiedForeignKey();
+
+                if (($relatedRelation instanceof BelongsToJoin) or ($relatedRelation instanceof BelongsTo)) {
+                    $relatedKey = method_exists($relatedRelation, 'getQualifiedForeignKeyName') ? $relatedRelation->getQualifiedForeignKeyName() : $relatedRelation->getQualifiedForeignKey();
                     $relatedKey = last(explode('.', $relatedKey));
-                    $ownerKey = is_callable([$relatedRelation, 'getOwnerKeyName']) ? $relatedRelation->getOwnerKeyName() : $relatedRelation->getOwnerKey();
+                    $ownerKey = method_exists($relatedRelation, 'getOwnerKeyName') ? $relatedRelation->getOwnerKeyName() : $relatedRelation->getOwnerKey();
 
                     $this->$joinMethod($joinQuery, function ($join) use ($relatedRelation, $relatedTableAlias, $relatedKey, $currentTableAlias, $ownerKey) {
-                        $join->on($relatedTableAlias.'.'.$ownerKey, '=', $currentTableAlias.'.'.$relatedKey);
+                        $join->on($relatedTableAlias . '.' . $ownerKey, '=', $currentTableAlias . '.' . $relatedKey);
 
                         $this->joinQuery($join, $relatedRelation, $relatedTableAlias);
                     });
-                } elseif ($relatedRelation instanceof HasOneJoin || $relatedRelation instanceof HasManyJoin) {
+
+                }
+                elseif ($relatedRelation instanceof HasOneJoin || $relatedRelation instanceof HasManyJoin) {
                     $relatedKey = $relatedRelation->getQualifiedForeignKeyName();
                     $relatedKey = last(explode('.', $relatedKey));
                     $localKey = $relatedRelation->getQualifiedParentKeyName();
@@ -231,6 +238,7 @@ class EloquentJoinBuilder extends Builder
                         $this->joinQuery($join, $relatedRelation, $relatedTableAlias);
                     });
                 } else {
+//                    dd($relatedRelation);
                     throw new InvalidRelation();
                 }
             }
@@ -269,7 +277,7 @@ class EloquentJoinBuilder extends Builder
             if ($scope instanceof SoftDeletingScope) {
                 $this->applyClauseOnRelation($join, 'withoutTrashed', [], $relatedTableAlias);
             } else {
-                throw new InvalidRelationGlobalScope();
+//                throw new InvalidRelationGlobalScope();
             }
         }
     }
